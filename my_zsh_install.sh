@@ -7,7 +7,7 @@
 
 set -e  # Salir en caso de error
 
-echo "� Actualizando el sistema..."
+echo "🔄 Actualizando el sistema..."
 sudo apt update && sudo apt upgrade -y
 
 echo "📦 Instalando dependencias básicas (Zsh, Git, Curl, Fuentes)..."
@@ -102,6 +102,12 @@ setopt SHARE_HISTORY
 alias ll='ls -alF'
 alias la='ls -A'
 alias l='ls -CF'
+
+# ============================================
+# Alias Personalizados
+# ============================================
+alias myip='curl ifconfig.me'
+
 EOF
 
 echo "🔧 Cambiando shell por defecto a Zsh..."
