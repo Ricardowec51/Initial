@@ -94,7 +94,7 @@ paso3() {
 paso4() {
     echo -e "${BLUE}Paso 4: Instalación de utilitarios.${NC}"
     OS_VERSION=$(lsb_release -rs 2>/dev/null || echo "22.04")
-    UTIL_FETCH="fastfetch"
+    UTIL_FETCH="neofetch"
     if [[ "$OS_VERSION" < "24.04" ]]; then UTIL_FETCH="neofetch"; fi
     
     sudo apt install -y $UTIL_FETCH speedtest-cli glances cockpit net-tools htop curl git
