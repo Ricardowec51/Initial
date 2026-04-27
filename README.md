@@ -1,4 +1,4 @@
-# Post-Install Setup — Ricardo Wagner & AntiGravity
+# Post-Install Setup — Ricardo Wagner & Claude(Sonet4.7)
 
 Scripts de post-instalación para dejar un sistema recién instalado **listo para trabajar** en minutos.  
 Soporta **macOS** (Apple Silicon e Intel) y **Ubuntu/Debian**.
@@ -106,4 +106,4 @@ No ejecutar como `root`. Los scripts solicitan `sudo` internamente cuando es nec
 
 ---
 
-*Ricardo Wagner & AntiGravity*
+*Ricardo Wagner & Claude(Sonet4.7)*
