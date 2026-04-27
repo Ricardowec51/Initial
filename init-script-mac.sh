@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# Script Post-Instalación Ubuntu 24.04/22.04
+# Script Post-Instalación macOS (Apple Silicon & Intel)
 # Ricardo Wagner & AntiGravity
 # ==============================================================================
 
@@ -20,7 +20,17 @@ sep()  { echo -e "\n${CYAN}── $1${NC}"; }
 # No correr como root
 [[ $EUID -eq 0 ]] && echo -e "${RED}No ejecutar como root.${NC}" && exit 1
 
-CURRENT_USER=$(logname 2>/dev/null || echo "$USER")
+# Activar Homebrew en la sesión actual
+_brew_init() {
+    if [[ $(uname -m) == 'arm64' ]]; then
+        [[ -f /opt/homebrew/bin/brew ]] && eval "$(/opt/homebrew/bin/brew shellenv)"
+    else
+        [[ -f /usr/local/bin/brew ]] && eval "$(/usr/local/bin/brew shellenv)"
+    fi
+}
+_brew_init
+
+CURRENT_USER=$(whoami)
 
 # ------------------------------------------------------------------------------
 # Resumen
@@ -30,15 +40,15 @@ print_summary() {
     echo -e "${BLUE}${BOLD}│ Paso                                                     │  Estado    │${NC}"
     echo -e "${BLUE}${BOLD}├──────────────────────────────────────────────────────────┼────────────┤${NC}"
     local steps=(
-        "1|Configurar sudo sin contraseña"
-        "2|Instalar qemu-guest-agent"
-        "3|Actualización del sistema"
-        "4|Instalar utilitarios modernos"
-        "5|Sincronizar hora (Ecuador)"
+        "1|Instalar Homebrew"
+        "2|Actualizar sistema y paquetes"
+        "3|Instalar herramientas base"
+        "4|Instalar utilitarios modernos (eza, bat, fzf, zoxide)"
+        "5|Ajustar hora (Ecuador)"
         "6|Instalar Zsh Pro (p10k + herramientas)"
-        "7|Añadir nuevo usuario sudo"
-        "8|Expansión automática disco LVM"
-        "9|Instalar Docker CE"
+        "7|Añadir nuevo usuario"
+        "8|Tweaks de macOS (Finder, Dock, etc.)"
+        "9|Instalar Docker (OrbStack)"
         "10|Instalar Portainer CE"
     )
     for entry in "${steps[@]}"; do
@@ -62,14 +72,15 @@ print_sysinfo() {
     echo -e "${GREEN}${BOLD}══════════════════════════════════════════${NC}"
     echo "  Hostname:    $(hostname)"
     echo "  Usuario:     $CURRENT_USER"
-    echo "  S.O.:        $(lsb_release -ds 2>/dev/null)"
-    echo "  Kernel:      $(uname -r)"
+    echo "  S.O.:        $(sw_vers -productName) $(sw_vers -productVersion)"
+    echo "  Chip:        $(uname -m) — $(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo 'Apple Silicon')"
     echo -e "\n  Disco (/):"
     df -h / | tail -1 | awk '{printf "    Tamaño: %s | Usado: %s | Libre: %s | Uso: %s\n",$2,$3,$4,$5}'
     echo -e "\n  Memoria:"
-    free -h | awk '/^Mem:/ {printf "    Total: %s | Usada: %s | Libre: %s\n",$2,$3,$4}'
+    local mem_total=$(( $(sysctl -n hw.memsize) / 1024 / 1024 / 1024 ))
+    echo "    Total: ${mem_total}GB"
     echo -e "\n  Red:"
-    echo "    IP Local:   $(hostname -I | awk '{print $1}')"
+    echo "    IP Local:   $(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 'N/A')"
     echo "    IP Externa: $(curl -s --max-time 5 ifconfig.me 2>/dev/null || echo 'N/A')"
     echo -e "${GREEN}${BOLD}══════════════════════════════════════════${NC}\n"
 }
@@ -83,58 +94,68 @@ run_step() {
 # Pasos
 # ------------------------------------------------------------------------------
 paso1() {
-    sep "Paso 1: Sudo sin contraseña"
-    if sudo -n true 2>/dev/null; then
-        log "Sudo ya está configurado sin contraseña."
+    sep "Paso 1: Homebrew"
+    if command -v brew &>/dev/null; then
+        log "Homebrew ya instalado ($(brew --version | head -1))."
     else
-        echo "$CURRENT_USER ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/$CURRENT_USER > /dev/null
-        sudo chmod 0440 /etc/sudoers.d/$CURRENT_USER
-        log "Sudo sin contraseña configurado para $CURRENT_USER."
+        warn "Instalando Homebrew..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        _brew_init
+        log "Homebrew instalado."
     fi
 }
 
 paso2() {
-    sep "Paso 2: qemu-guest-agent"
-    if systemctl is-active --quiet qemu-guest-agent; then
-        log "qemu-guest-agent ya está activo."
-    else
-        sudo apt update -q && sudo apt install -y qemu-guest-agent
-        sudo systemctl enable --now qemu-guest-agent
-        log "qemu-guest-agent instalado y activo."
-    fi
+    sep "Paso 2: Actualizar sistema"
+    _brew_init
+    warn "Actualizando Homebrew y paquetes..."
+    brew update && brew upgrade
+    brew cleanup
+    log "Sistema actualizado."
 }
 
 paso3() {
-    sep "Paso 3: Actualización del sistema"
-    sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
-    log "Sistema actualizado."
+    sep "Paso 3: Herramientas base"
+    _brew_init
+    local tools=(git wget curl htop fastfetch jq tree watch)
+    for tool in "${tools[@]}"; do
+        if brew list "$tool" &>/dev/null 2>&1; then
+            log "$tool ya instalado"
+        else
+            warn "Instalando $tool..."
+            brew install "$tool"
+        fi
+    done
+    log "Herramientas base listas."
 }
 
 paso4() {
     sep "Paso 4: Utilitarios modernos"
-    # fastfetch en 24.04+, neofetch en versiones anteriores
-    OS_VER=$(lsb_release -rs 2>/dev/null | cut -d. -f1)
-    if [[ "$OS_VER" -ge 24 ]]; then
-        FETCH_TOOL="fastfetch"
-    else
-        FETCH_TOOL="neofetch"
-    fi
-    sudo apt install -y "$FETCH_TOOL" glances cockpit net-tools htop curl git wget \
-        build-essential unzip jq tree
-    log "Utilitarios instalados ($FETCH_TOOL incluido)."
+    _brew_init
+    local tools=(eza bat fzf zoxide)
+    for tool in "${tools[@]}"; do
+        if brew list "$tool" &>/dev/null 2>&1; then
+            log "$tool ya instalado"
+        else
+            warn "Instalando $tool..."
+            brew install "$tool"
+        fi
+    done
+    log "Utilitarios modernos listos."
 }
 
 paso5() {
     sep "Paso 5: Zona horaria (Ecuador)"
-    sudo timedatectl set-timezone America/Guayaquil
-    sudo timedatectl set-ntp on
-    log "Hora sincronizada → $(timedatectl | grep 'Local time')"
+    sudo systemsetup -settimezone America/Guayaquil 2>/dev/null \
+        || sudo ln -sf /usr/share/zoneinfo/America/Guayaquil /etc/localtime
+    sudo systemsetup -setusingnetworktime on 2>/dev/null || true
+    log "Hora → $(date)"
 }
 
 paso6() {
-    sep "Paso 6: Zsh Pro (Oh My Zsh + Powerlevel10k + herramientas modernas)"
-    local ZSH_SCRIPT_URL="https://raw.githubusercontent.com/Ricardowec51/DevOps/main/bin/setup-zsh-ubuntu.sh"
-    local TMP_ZSH="/tmp/setup-zsh-ubuntu.sh"
+    sep "Paso 6: Zsh Pro (Oh My Zsh + Powerlevel10k + eza/bat/fzf/zoxide)"
+    local ZSH_SCRIPT_URL="https://raw.githubusercontent.com/Ricardowec51/DevOps/main/bin/setup-zsh-mac.sh"
+    local TMP_ZSH="/tmp/setup-zsh-mac.sh"
 
     warn "Descargando script de configuración Zsh..."
     curl -fsSL "$ZSH_SCRIPT_URL" -o "$TMP_ZSH"
@@ -145,7 +166,7 @@ paso6() {
 }
 
 paso7() {
-    sep "Paso 7: Nuevo usuario sudo"
+    sep "Paso 7: Nuevo usuario"
     read -rp "  Nombre del nuevo usuario: " newuser
     if [[ -z "$newuser" ]]; then
         warn "No se ingresó nombre. Paso omitido."; return 0
@@ -153,61 +174,75 @@ paso7() {
     if id "$newuser" &>/dev/null; then
         log "El usuario '$newuser' ya existe."
     else
-        sudo adduser --gecos "" --disabled-password "$newuser"
-        echo "$newuser:$newuser" | sudo chpasswd
-        sudo usermod -aG sudo "$newuser"
-        log "Usuario '$newuser' creado. Contraseña inicial: $newuser (cámbiala con passwd)"
+        local uid_next=$(( $(dscl . -list /Users UniqueID | awk '{print $2}' | sort -n | tail -1) + 1 ))
+        sudo dscl . -create /Users/"$newuser"
+        sudo dscl . -create /Users/"$newuser" UserShell /bin/zsh
+        sudo dscl . -create /Users/"$newuser" RealName "$newuser"
+        sudo dscl . -create /Users/"$newuser" UniqueID "$uid_next"
+        sudo dscl . -create /Users/"$newuser" PrimaryGroupID 20
+        sudo dscl . -create /Users/"$newuser" NFSHomeDirectory /Users/"$newuser"
+        sudo createhomedir -c -u "$newuser" 2>/dev/null
+        sudo dscl . -append /Groups/admin GroupMembership "$newuser"
+        sudo dscl . -passwd /Users/"$newuser" "$newuser"
+        log "Usuario '$newuser' creado como admin. Contraseña inicial: $newuser"
     fi
 }
 
 paso8() {
-    sep "Paso 8: Expansión de disco LVM"
-    ROOT_PART=$(findmnt / -no SOURCE)
-    if [[ "$ROOT_PART" != /dev/mapper/* ]]; then
-        warn "No se detectó volumen LVM en /. Paso omitido."; return 0
-    fi
-    DISK=$(lsblk -no pkname "$ROOT_PART" | head -1)
-    PV_DEVICE=$(sudo pvs --noheadings -o pv_name | xargs)
-    PART_NUM=$(echo "$PV_DEVICE" | grep -oE '[0-9]+$')
-    LV_PATH=$(sudo lvs --noheadings -o lv_path | xargs)
+    sep "Paso 8: Tweaks de macOS"
+    warn "Aplicando configuraciones del sistema..."
 
-    sudo swapoff -a 2>/dev/null || true
-    sudo parted /dev/"$DISK" resizepart "$PART_NUM" 100%
-    sudo pvresize "$PV_DEVICE"
-    sudo lvextend -l +100%FREE "$LV_PATH"
-    sudo resize2fs "$LV_PATH" 2>/dev/null || sudo xfs_growfs "$LV_PATH"
-    log "Disco LVM expandido al 100%."
-    df -h /
+    # Finder: mostrar extensiones y archivos ocultos
+    defaults write NSGlobalDomain AppleShowAllExtensions -bool true
+    defaults write com.apple.finder AppleShowAllFiles -bool true
+    defaults write com.apple.finder ShowPathbar -bool true
+    defaults write com.apple.finder ShowStatusBar -bool true
+
+    # Dock: velocidad de animación y auto-hide
+    defaults write com.apple.dock autohide -bool true
+    defaults write com.apple.dock autohide-delay -float 0
+    defaults write com.apple.dock autohide-time-modifier -float 0.5
+
+    # Capturas de pantalla en ~/Desktop/Screenshots
+    mkdir -p "$HOME/Desktop/Screenshots"
+    defaults write com.apple.screencapture location "$HOME/Desktop/Screenshots"
+
+    # Teclado: más rápido
+    defaults write NSGlobalDomain KeyRepeat -int 2
+    defaults write NSGlobalDomain InitialKeyRepeat -int 15
+
+    # Deshabilitar autocorrección
+    defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
+
+    # Reiniciar Finder y Dock para aplicar
+    killall Finder 2>/dev/null || true
+    killall Dock   2>/dev/null || true
+
+    log "Tweaks aplicados."
 }
 
 paso9() {
-    sep "Paso 9: Docker CE"
-    if command -v docker &>/dev/null; then
-        log "Docker ya instalado ($(docker --version))."; return 0
+    sep "Paso 9: Docker (OrbStack)"
+    _brew_init
+    if command -v orbctl &>/dev/null || [[ -d "/Applications/OrbStack.app" ]]; then
+        log "OrbStack ya instalado."
+    elif command -v docker &>/dev/null; then
+        log "Docker ya disponible ($(docker --version))."
+    else
+        warn "Instalando OrbStack (Docker + Linux en macOS)..."
+        brew install --cask orbstack
+        log "OrbStack instalado. Ábrelo desde Applications para activar."
     fi
-    sudo apt update
-    sudo apt install -y ca-certificates curl gnupg
-    sudo install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-        | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    sudo chmod a+r /etc/apt/keyrings/docker.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-        | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-    sudo apt update
-    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    sudo usermod -aG docker "$CURRENT_USER"
-    sudo systemctl enable --now docker
-    log "Docker CE instalado. Re-login para usar sin sudo."
 }
 
 paso10() {
     sep "Paso 10: Portainer CE"
     if ! command -v docker &>/dev/null; then
-        err "Docker no instalado. Ejecuta el Paso 9 primero."; return 1
+        err "Docker no disponible. Ejecuta el Paso 9 y abre OrbStack primero."
+        return 1
     fi
-    if docker ps -a --format '{{.Names}}' | grep -q '^portainer$'; then
-        log "Portainer ya está instalado."
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^portainer$'; then
+        log "Portainer ya instalado."
         docker start portainer 2>/dev/null || true
         return 0
     fi
@@ -219,7 +254,8 @@ paso10() {
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v portainer_data:/data \
         portainer/portainer-ce:latest
-    log "Portainer CE activo → https://$(hostname -I | awk '{print $1}'):9443"
+    local local_ip=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 'localhost')
+    log "Portainer CE activo → https://${local_ip}:9443"
 }
 
 # ------------------------------------------------------------------------------
@@ -228,18 +264,18 @@ paso10() {
 show_menu() {
     clear
     echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}${BOLD}║     POST-INSTALACIÓN UBUNTU  —  Ricardo & AntiGravity   ║${NC}"
+    echo -e "${GREEN}${BOLD}║     POST-INSTALACIÓN macOS  —  Ricardo & AntiGravity    ║${NC}"
     echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════════════════╝${NC}"
     local items=(
-        "1) Configurar sudo sin contraseña"
-        "2) Instalar qemu-guest-agent"
-        "3) Actualizar sistema"
-        "4) Instalar utilitarios modernos (fastfetch, htop, glances...)"
+        "1) Instalar Homebrew"
+        "2) Actualizar sistema (brew update + upgrade)"
+        "3) Instalar herramientas base (git, wget, htop, fastfetch...)"
+        "4) Instalar utilitarios modernos (eza, bat, fzf, zoxide)"
         "5) Ajustar hora → America/Guayaquil"
         "6) Instalar Zsh Pro (Oh My Zsh + Powerlevel10k + eza/bat/fzf/zoxide)"
-        "7) Crear nuevo usuario sudo"
-        "8) Expandir disco LVM"
-        "9) Instalar Docker CE"
+        "7) Crear nuevo usuario admin"
+        "8) Tweaks de macOS (Finder, Dock, teclado...)"
+        "9) Instalar Docker (OrbStack)"
         "10) Instalar Portainer CE"
         "11) ★  EJECUTAR TODOS LOS PASOS"
         "0) Salir"
