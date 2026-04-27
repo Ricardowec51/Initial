@@ -1,81 +1,109 @@
-# Server Initialization & Optimization Toolset
+# Post-Install Setup — Ricardo Wagner & AntiGravity
 
-A comprehensive collection of automation scripts designed to transform a fresh Ubuntu installation into a production-ready environment with optimized shell, security hardening, and essential infrastructure.
-
----
-
-## 🛠️ Script Documentation
-
-### 1. `init-script.sh` (The Orchestrator)
-This is the main post-installation script designed for Ubuntu 22.04/24.04. It uses a menu-driven interface to perform critical system optimizations.
-
-*   **Key Features:**
-    *   **LVM Disk Expansion**: Automatically detects if the system is using LVM and expands the root partition to use all available disk space.
-    *   **Security & User Management**: Configures passwordless `sudo` and creates new administrative users.
-    *   **System Core**: Installs `QEMU Guest Agent`, updates all packages, and synchronizes time/timezone.
-    *   **Modern Utilities**: Installs `fastfetch`, `glances`, `cockpit`, and `htop` for professional monitoring.
-    *   **Containerization**: One-click installation of `Docker Engine` and `Portainer CE`.
-    *   **Zsh Integration**: Automatically calls the Zsh Pro installer as part of the setup.
-
-*   **Pre-configuration Requirements:**
-    *   A clean installation of Ubuntu (Server or Desktop).
-    *   Initial `sudo` or `root` access.
-    *   Active internet connection.
+Scripts de post-instalación para dejar un sistema recién instalado **listo para trabajar** en minutos.  
+Soporta **macOS** (Apple Silicon e Intel) y **Ubuntu/Debian**.
 
 ---
 
-### 2. `my_zsh_install.sh` (Zsh Pro Setup)
-An automated script to set up a premium terminal experience. It replaces the default Bash shell with a highly functional Zsh environment.
-
-*   **Key Features:**
-    *   **Oh My Zsh Framework**: Installs the industry-standard Zsh management framework.
-    *   **Premium Theme**: Installs and configures the `Honukai` theme for high readability and aesthetics.
-    *   **Power-User Plugins**:
-        *   `zsh-autosuggestions`: Shell-completion based on history.
-        *   `zsh-syntax-highlighting`: Real-time command validation.
-        *   `zsh-completions`: Enhanced tab-completion for common tools.
-    *   **Default Shell**: Automatically switches the user's shell to Zsh.
-
-*   **Pre-configuration Requirements:**
-    *   `curl` or `wget` installed (the script handles basic dependencies, but internet access is mandatory).
-
----
-
-### 3. `install-wireguard.sh` (WireGuard VPN Installer)
-A streamlined script to deploy a high-performance, secure WireGuard VPN server.
-
-*   **Key Features:**
-    *   **Automated Networking**: Self-detects the primary network interface (e.g., `ens18` or `eth0`).
-    *   **IP Forwarding**: Automatically enables persistent IPv4 forwarding in the kernel.
-    *   **Security**: Generates server/client keys and configures robust `iptables` NAT rules for internet routing.
-    *   **Ready-to-Use**: Provides a clear summary of the public key and configuration steps for clients.
-
-*   **Pre-configuration Requirements:**
-    *   **Network Port**: You must open/forward the UDP port (default `51820`) in your firewall or router.
-    *   **Public IP**: Ensure you know your public IP address (the script will prompt for it).
-
----
-
-## 📋 General Requirements
-
-*   **Operating System**: Ubuntu 22.04 LTS or 24.04 LTS.
-*   **Permissions**: All scripts must be run with `sudo` or as the `root` user.
-*   **Git**: Required to clone this repository.
-
-## 🚀 How to Use
+## Uso rápido — un solo comando
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/Ricardowec51/Initial.git
-cd Initial
+bash <(curl -fsSL https://raw.githubusercontent.com/Ricardowec51/Initial/main/init.sh)
+```
 
-# 2. Make scripts executable
-chmod +x *.sh
+El script detecta el sistema operativo automáticamente y lanza el menú correspondiente.
 
-# 3. Run the main orchestrator
-sudo ./init-script.sh
+---
+
+## Los 10 pasos
+
+| # | Ubuntu / Debian | macOS |
+|---|---|---|
+| 1 | Configurar sudo sin contraseña | Instalar Homebrew |
+| 2 | Instalar qemu-guest-agent | Actualizar sistema (`brew upgrade`) |
+| 3 | Actualizar sistema (`apt upgrade`) | Instalar herramientas base (git, htop, fastfetch…) |
+| 4 | Instalar utilitarios (fastfetch, glances, htop…) | Instalar utilitarios modernos (eza, bat, fzf, zoxide) |
+| 5 | Sincronizar hora → America/Guayaquil | Ajustar hora → America/Guayaquil |
+| 6 | **Zsh Pro** (Oh My Zsh + Powerlevel10k + herramientas) | **Zsh Pro** (Oh My Zsh + Powerlevel10k + herramientas) |
+| 7 | Crear nuevo usuario sudo | Crear nuevo usuario admin |
+| 8 | Expansión automática de disco LVM | Tweaks de macOS (Finder, Dock, teclado) |
+| 9 | Instalar Docker CE | Instalar Docker (OrbStack) |
+| 10 | Instalar Portainer CE | Instalar Portainer CE |
+
+> La opción **11** ejecuta todos los pasos en secuencia (excepto el 7, que requiere input manual).
+
+---
+
+## Zsh Pro — Paso 6
+
+El corazón de la configuración del shell. Instala y configura:
+
+| Componente | Descripción |
+|---|---|
+| [Oh My Zsh](https://ohmyz.sh) | Framework para gestionar Zsh |
+| [Powerlevel10k](https://github.com/romkatv/powerlevel10k) | Tema ultra-rápido con prompt informativo |
+| zsh-autosuggestions | Sugerencias basadas en historial |
+| zsh-syntax-highlighting | Colorea la sintaxis en tiempo real |
+| zsh-completions | Completaciones extendidas para cientos de comandos |
+| [eza](https://github.com/eza-community/eza) | Reemplazo moderno de `ls` con iconos |
+| [bat](https://github.com/sharkdp/bat) | Reemplazo de `cat` con syntax highlighting |
+| [fzf](https://github.com/junegunn/fzf) | Búsqueda difusa en historial y archivos |
+| [zoxide](https://github.com/ajeetdsouza/zoxide) | Reemplazo de `cd` inteligente |
+| MesloLGS Nerd Font | Fuente con iconos para Powerlevel10k |
+
+**Aliases resultantes:**
+
+```zsh
+ls    → eza --icons
+ll    → eza -alF --icons --git
+la    → eza -a --icons
+tree  → eza --tree --icons
+cat   → bat --paging=never
+cd    → z  (zoxide)
+```
+
+Al terminar, abre una nueva terminal y ejecuta `p10k configure` para personalizar el prompt.  
+Asegúrate de configurar la fuente **MesloLGS NF Regular** en tu emulador de terminal.
+
+---
+
+## Estructura del repositorio
+
+```
+Initial/
+├── init.sh                ← Punto de entrada único (detecta macOS/Ubuntu)
+├── init-script.sh         ← Menú interactivo Ubuntu/Debian (10 pasos)
+├── init-script-mac.sh     ← Menú interactivo macOS (10 pasos)
+├── install-wireguard.sh   ← Instalación de WireGuard VPN
+└── my_zsh_install.sh      ← Script Zsh legacy (Honukai — referencia)
+```
+
+Los instaladores Zsh del Paso 6 viven en:
+[Ricardowec51/DevOps → bin/](https://github.com/Ricardowec51/DevOps/tree/main/bin)
+
+---
+
+## Uso por plataforma (script directo)
+
+```bash
+# Ubuntu/Debian
+bash <(curl -fsSL https://raw.githubusercontent.com/Ricardowec51/Initial/main/init-script.sh)
+
+# macOS
+bash <(curl -fsSL https://raw.githubusercontent.com/Ricardowec51/Initial/main/init-script-mac.sh)
 ```
 
 ---
 
-*Authored and optimized by Ricardo & AntiGravity.*
+## Requisitos
+
+| Plataforma | Requisito |
+|---|---|
+| Ubuntu/Debian | Ubuntu 22.04+ o Debian 11+, usuario con `sudo` |
+| macOS | macOS 12 Monterey o superior, Apple Silicon o Intel |
+
+No ejecutar como `root`. Los scripts solicitan `sudo` internamente cuando es necesario.
+
+---
+
+*Ricardo Wagner & AntiGravity*
