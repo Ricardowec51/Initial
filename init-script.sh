@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# Script Post-Instalación Ubuntu 24.04/22.04
+# Script Post-Instalación Ubuntu Desktop 26.04+
 # Ricardo Wagner & AntiGravity
 # ==============================================================================
 
@@ -20,7 +20,7 @@ sep()  { echo -e "\n${CYAN}── $1${NC}"; }
 # No correr como root
 [[ $EUID -eq 0 ]] && echo -e "${RED}No ejecutar como root.${NC}" && exit 1
 
-CURRENT_USER=$(logname 2>/dev/null || echo "$USER")
+CURRENT_USER="${SUDO_USER:-${USER:-$(id -un)}}"
 
 # ------------------------------------------------------------------------------
 # Resumen
@@ -95,6 +95,10 @@ paso1() {
 
 paso2() {
     sep "Paso 2: qemu-guest-agent"
+     if ! systemd-detect-virt >/dev/null 2>&1; then
+         warn "Equipo físico detectado; qemu-guest-agent omitido."
+         return 0
+     fi
     if systemctl is-active --quiet qemu-guest-agent; then
         log "qemu-guest-agent ya está activo."
     else
@@ -120,7 +124,7 @@ paso4() {
         FETCH_TOOL="neofetch"
     fi
     sudo apt install -y "$FETCH_TOOL" glances cockpit net-tools htop curl git wget \
-        build-essential unzip jq tree
+        build-essential unzip jq tree ffmpeg portaudio19-dev libopus0
     log "Utilitarios instalados ($FETCH_TOOL incluido)."
 }
 
